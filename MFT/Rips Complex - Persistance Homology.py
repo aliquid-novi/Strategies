@@ -1,18 +1,16 @@
 import MetaTrader5 as mt5
 from datetime import datetime
-import pytz
 import pandas as pd
-import matplotlib.pyplot as plt
-from statsmodels.tsa.arima.model import ARIMA
 import numpy as np
 import warnings
 from sklearn.metrics.pairwise import euclidean_distances
 import gudhi as gd
 import shutil
+import ta
 warnings.filterwarnings("ignore")
 mt5.initialize()
 account=51127988
-password="Aar2frM7"
+password= "Aar2frM7"
 server = 'ICMarkets-Demo'
 
 def get_rates(pair1, x):
@@ -20,9 +18,47 @@ def get_rates(pair1, x):
     pair1['time'] = pd.to_datetime(pair1['time'], unit = 's')
     return pair1
 
-AUDUSD = get_rates('AUDUSD.a', 150)
+AUDUSD = get_rates('AUDUSD.a', 250)
 
 df = AUDUSD[['open', 'high', 'low', 'close']]
+df = df.iloc[:-1] 
+
+df['tr1'] = df['high'] - df['low']
+df['tr2'] = abs(df['high'] - df['close'].shift())
+df['tr3'] = abs(df['low'] - df['close'].shift())
+df['tr'] = df[['tr1', 'tr2', 'tr3']].max(axis=1)
+
+from ta.trend import MACD
+from ta.momentum import RSIIndicator, StochRSIIndicator
+from ta.volatility import DonchianChannel
+
+macd_indicator = MACD(df['close'])
+df['MACD'] = macd_indicator.macd()
+df['MACD_signal'] = macd_indicator.macd_signal()
+df['MACD_diff'] = macd_indicator.macd_diff()
+
+# RSI
+rsi_indicator = RSIIndicator(df['close'])
+df['RSI'] = rsi_indicator.rsi()
+
+# StochRSI
+stoch_rsi_indicator = StochRSIIndicator(df['close'])
+df['StochRSI'] = stoch_rsi_indicator.stochrsi()
+df['StochRSI_K'] = stoch_rsi_indicator.stochrsi_k()
+df['StochRSI_D'] = stoch_rsi_indicator.stochrsi_d()
+
+# Donchian Channel
+df['middle'] = df[['high', 'low']].median(axis=1)
+donchian_channel = DonchianChannel(df['high'], df['low'], df['close'])
+df['Donchian_channel_high'] = donchian_channel.donchian_channel_hband()
+df['Donchian_channel_low'] = donchian_channel.donchian_channel_lband()
+df['Donchian_channel_middle'] = donchian_channel.donchian_channel_mband()
+
+df['ma7'] = df['close'].rolling(window = 7).mean()
+df['ma21'] = df['close'].rolling(window = 21).mean()
+window_size = 7  # Choose the desired window size for the rolling calculation
+df['atr'] = df['tr'].rolling(window=window_size).mean()
+df = df.dropna()
 
 # Compute the Euclidean distance matrix
 dist_matrix = euclidean_distances(df)
@@ -48,22 +84,37 @@ persistent_features = [interval for interval in diag if interval[1][1] - interva
 
 # Hypothetical trading logic
 if len(persistent_features) > threshold_high:
-    print("The market is complex, potentially indicating a trend change. Consider selling if in a long position.")
-    if len(mt5.positions_get()) == 0:
-        buy_order()
-    else:
-        for i in mt5.positions_get():
-            close_position(i)
-elif len(persistent_features) < threshold_low:
-    print("The market is simple, potentially indicating a trend continuation. Consider buying if in a short position.")
+    print("The market is complex, potentially indicating a trend change. Short")
     if len(mt5.positions_get()) == 0:
         sell_order()
     else:
         for i in mt5.positions_get():
-            close_position(i)
+            if 'Rips' in i.comment and i.type == 1:
+                print('Already in short position. No action')
+                # position = i 
+                # close_position(position) ## still closing everything else, amend when important
+                # sell_order()
+            elif 'Rips' in i.comment and i.type == 0:
+                print('Previously long. Changing to short.')
+                position = i 
+                close_position(position) ## still closing everything else, amend when important
+                sell_order()
+
+elif len(persistent_features) < threshold_low:
+    print("The market is simple, potentially indicating a trend continuation. Buy")
+    if len(mt5.positions_get()) == 0:
+        buy_order()
+    else:
+        for i in mt5.positions_get():
+            if i.type == 1:
+                print('Already long')
+                break
+            else:
+                close_position(i)
+                buy_order()
 else:
     print("The market is in an intermediate state. No action taken.")
-    
+
 def buy_order():
     price = mt5.symbol_info_tick('AUDUSD.a').ask
     request = {
