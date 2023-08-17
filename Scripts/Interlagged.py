@@ -35,7 +35,7 @@ def run():
             "price": price,
             "deviation": 20,
             "magic": 234000,
-            "comment": f"Rips Complex",
+            "comment": f"Interlagged",
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_IOC,
         }
@@ -52,7 +52,7 @@ def run():
             "price": price,
             "deviation": 20,
             "magic": 234000,
-            "comment": f"Rips Complex",
+            "comment": f"Interlagged",
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_IOC,
         }
@@ -170,6 +170,10 @@ def run():
     open_positions = {}
 
     # ... code to open position ...
+    for i in buy_list:
+        buy_order(i)
+    for i in sell_list:
+        sell_order(i)
 
     # After opening a position, store the opening time
     for position in mt5.positions_get():
