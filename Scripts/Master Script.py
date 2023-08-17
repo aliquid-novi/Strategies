@@ -20,12 +20,12 @@ print(f"Master Script executed at {now}")
 
     
 def func():
-    print("Running 15m Pair Strat...")
+    print("Running Interlagged Strategy...")
     Interlagged.run()
 
 # func()
 
-schedule.every(2).seconds.do(func)
+schedule.every(50).seconds.do(func)
 
 while True:
     aest = pytz.timezone('Australia/Sydney')
