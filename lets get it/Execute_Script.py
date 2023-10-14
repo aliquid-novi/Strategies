@@ -421,6 +421,62 @@ def run():
         Hedge_Ratio2 = Model2.fit()
         hedge_ratio_float2 = round(Hedge_Ratio2.params[0], 2)
         return hedge_ratio_float2
+    
+    def MC_send_order(symbol, side, lot, comment, final_direction):
+        
+        lot = abs(round(float(lot * score), 2))
+        print(f"for {symbol}, the lot size is {lot}")
+        
+        if side.lower() == 'sell':
+            order_type = mt5.ORDER_TYPE_SELL
+            price = mt5.symbol_info_tick(symbol).bid
+        elif side.lower() == 'buy':
+            order_type = mt5.ORDER_TYPE_BUY
+            price = mt5.symbol_info_tick(symbol).ask
+        
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": lot,
+            "type": order_type,
+            "price": price,
+            "deviation": 5,
+            "magic": 234000,
+            "comment": comment,
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_IOC,
+        }
+        
+        result = mt5.order_send(request)
+        result
+    
+    def mc_ordersending(final_direction):
+
+        hedge_ratios = {}
+
+        for i in coint_pairs:
+            x = get_rates(i[0], mt5.TIMEFRAME_D1, 1000)
+            y = get_rates(i[1], mt5.TIMEFRAME_D1, 1000)
+            hedge_ratios[i] = calc_hedge_ratio(x, y)
+
+        print(hedge_ratios)
+
+        lot = 2.00
+
+        # For selling orders
+        for i in MC_orders['sell']:
+            # Check if sell order is not already opened
+            if not is_order_open(i, 'sell', 'MC_lin'):
+                MC_send_order(i, 'sell', lot, 'MC_lin', score)
+
+        # For buying orders
+        for i in MC_orders['buy']:
+            for key, val in hedge_ratios.items():
+                if i == key[1]:  # We apply hedge ratio to the second pair
+                    adjusted_lot = lot * val
+                    # Check if buy order is not already opened
+                    if not is_order_open(i, 'buy', 'MC_lin'):
+                        MC_send_order(i, 'buy', adjusted_lot, 'MC_lin', final_direction)
 
     # Classes # 
     class MarkovChain:
@@ -684,14 +740,14 @@ def run():
         print("-----")
 
     ## Matrix Creation ##
-    transition_matrix = lin_markov_chain.get_transition_matrix()
-    transition_matrix_final = lin_markov_chain.create_transition_matrix(transition_matrix)
+    lin_transition_matrix = lin_markov_chain.get_transition_matrix()
+    transition_matrix_final = lin_markov_chain.create_transition_matrix(lin_transition_matrix)
 
     # Getting Most Common States to find Sub-States within Matrix
     most_common_states = {}
 
     # Loop through each pair and its transitions in lin_trans_matrix
-    for pair, transitions in lin_trans_matrix.items():
+    for pair, transitions in lin_transition_matrix.items():
         state_counts = defaultdict(int)
         # Check if we're dealing with sub-states
         if pair in transitions:
@@ -731,6 +787,9 @@ def run():
         # Store the filtered DataFrame in most_common_states_dfs
         most_common_states_dfs[pair] = filtered_df
 
+    all_substate_scores = {}
+    scaler = StandardScaler()
+
     # Get the new probability matrix for all normal states + substates of the meta state #
     for pair, df in most_common_states_dfs.items():
         df = df.dropna()
@@ -753,75 +812,75 @@ def run():
         new_prob_matrix = lin_markov_chain.substate_create_new_probability_matrix(transition_matrix_final)
 
     
-    all_pair_scores = {}
+        all_pair_scores = {}
 
-    for pair, most_common_state in most_common_states.items():
-        print(f'Iterating through {pair}')
-        # Create a DataFrame for the current pair
-        pair_df = pd.DataFrame(
-            head_features[pair]['close'].values, 
-            states_dict[pair]['states']
-        ).reset_index()
-        
-        pair_df.columns = ['State', 'Price']
-        pair_df['pct_change'] = pair_df['Price'].pct_change()
-        # print(pair_df)
-        all_pair_scores[pair] = calc_score(pair_df)
+        for pair, most_common_state in most_common_states.items():
+            print(f'Iterating through {pair}')
+            # Create a DataFrame for the current pair
+            pair_df = pd.DataFrame(
+                head_features[pair]['close'].values, 
+                states_dict[pair]['states']
+            ).reset_index()
+            
+            pair_df.columns = ['State', 'Price']
+            pair_df['pct_change'] = pair_df['Price'].pct_change()
+            # print(pair_df)
+            all_pair_scores[pair] = calc_score(pair_df)
 
     MC_orders = {
     'sell': [],
     'buy': []
-}
+    }
 
-for pair, states_prob in new_prob_matrix.items():
-    print(f"Looping through {pair}")
-    current_state = states_dict[pair]['states'][-1]
+    for pair, states_prob in new_prob_matrix.items():
+        print(f"Looping through {pair}")
+        current_state = states_dict[pair]['states'][-1]
     
-    state_prob = states_prob.get(current_state, {})
-    
-    # Get the scores for this pair from the all_pair_scores and all_substate_scores dictionaries
-    pair_scores = all_pair_scores.get(pair, {})
-    substate_scores = all_substate_scores.get(pair, {})
-    final_direction = 0
-    
-    for state, prob in state_prob.items():
-        # Check if the state is a sub-state
-        if isinstance(state, str) and '-' in state:
-            
-            # print(f' {state[2]} is a substate')
-            substate = int(state.split('-')[1])  # Extract the substate index
-
-            # Get the score for this sub-state from the substate_scores dictionary
-            substate_score = all_substate_scores[pair].loc[substate]['Score']  # Default to 0 if the sub-state is not found
-            # print(f'{substate} probability is {prob}')
-            # Calculate the weighted score for this sub-state
-            weighted_substate_score = substate_score * prob
-            
-            # Update the final direction
-            final_direction += weighted_substate_score
-            
-        else:
-            # Get the score for this state from the pair_scores dictionary
-            score = pair_scores.get(state, 0)  # Default to 0 if the state is not found
-
-            # Calculate the weighted score for this state
-            weighted_score = score * prob
-            
-            # Update the final direction
-            final_direction += weighted_score
-
-        print(f'Direction for {pair} is ', final_direction)
+        state_prob = states_prob.get(current_state, {})
         
-        if final_direction < 0:
-            print(f"Selling {pair[0]} and buying {pair[1]}")
-            MC_orders['sell'].append(pair[0])
-            MC_orders['buy'].append(pair[1])
-        elif final_direction > 0:
-            print(f"Buying {pair[0]} and selling {pair[1]}")
-            MC_orders['buy'].append(pair[0])
-            MC_orders['sell'].append(pair[1])
+        # Get the scores for this pair from the all_pair_scores and all_substate_scores dictionaries
+        pair_scores = all_pair_scores.get(pair, {})
+        substate_scores = all_substate_scores.get(pair, {})
+        final_direction = 0
+        
+        for state, prob in state_prob.items():
+            # Check if the state is a sub-state
+            if isinstance(state, str) and '-' in state:
+                
+                # print(f' {state[2]} is a substate')
+                substate = int(state.split('-')[1])  # Extract the substate index
+
+                # Get the score for this sub-state from the substate_scores dictionary
+                substate_score = all_substate_scores[pair].loc[substate]['Score']  # Default to 0 if the sub-state is not found
+                
+                # Calculate the weighted score for this sub-state
+                weighted_substate_score = substate_score * prob
+                
+                # Update the final direction
+                final_direction += weighted_substate_score
+                
+            else:
+                # Get the score for this state from the pair_scores dictionary
+                score = pair_scores.get(state, 0)  # Default to 0 if the state is not found
+
+                # Calculate the weighted score for this state
+                weighted_score = score * prob
+                
+                # Update the final direction
+                final_direction += weighted_score
+
+            print(f'Direction for {pair} is ', final_direction)
             
-        mc_ordersending(final_direction)
+            if final_direction < 0:
+                print(f"Selling {pair[0]} and buying {pair[1]}")
+                MC_orders['sell'].append(pair[0])
+                MC_orders['buy'].append(pair[1])
+            elif final_direction > 0:
+                print(f"Buying {pair[0]} and selling {pair[1]}")
+                MC_orders['buy'].append(pair[0])
+                MC_orders['sell'].append(pair[1])
+                
+            mc_ordersending(final_direction)
 
 if __name__ == "__main__":
     run()
