@@ -414,6 +414,7 @@ def run():
             
             # Check the symbol and the type
             if position.symbol == pair and pos_type == order_type:
+                print(f"{position.symbol} is already open")
                 return True
         # If loop finishes and no matching open order was found
         return False
