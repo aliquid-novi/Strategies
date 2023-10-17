@@ -48,8 +48,8 @@ def run():
         pair1['time'] = pd.to_datetime(pair1['time'], unit = 's')
         return pair1['close']
     
-    def get_data(symbol, bars=1000):
-        rates = pd.DataFrame(mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_D1, 0, bars))
+    def get_data(symbol, bars=24000):
+        rates = pd.DataFrame(mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H1, 0, bars))
         rates['time'] = pd.to_datetime(rates['time'], unit = 's')
         return rates[['time', 'close']].set_index('time')
 
@@ -949,6 +949,8 @@ def run():
                 
                 # Update the final direction
                 final_direction += weighted_score
+
+            print(f'Direction for {pair} is ', final_direction)
             
             if final_direction < 0:
                 print(f"Selling {pair[0]} and buying {pair[1]}")
@@ -972,7 +974,6 @@ def run():
         y = get_rates(i[1], mt5.TIMEFRAME_D1, 1000)
         hedge_ratios[i] = calc_hedge_ratio(x, y)
 
-    print("Sending Linear Regression Orders now")
     lot = 0.75
     multi_lin_ordersend()
 
