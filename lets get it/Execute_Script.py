@@ -2,7 +2,6 @@
 import MetaTrader5 as mt5 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
-import ta
 import warnings
 from statsmodels.tsa.stattools import adfuller 
 warnings.filterwarnings("ignore")
@@ -34,8 +33,8 @@ from scipy.stats import kurtosis
 
 mt5.initialize()
 # Replace following with your MT5 Account Login
-account=51127988 # 
-password="Aar2frM7"
+account=51434456 # 
+password="9UpBvVzc"
 server = 'ICMarkets-Demo'
 
 def run():
@@ -955,10 +954,12 @@ def run():
                 print(f"Selling {pair[0]} and buying {pair[1]}")
                 MC_orders['sell'].append(pair[0])
                 MC_orders['buy'].append(pair[1])
+                break
             elif final_direction > 0:
                 print(f"Buying {pair[0]} and selling {pair[1]}")
                 MC_orders['buy'].append(pair[0])
                 MC_orders['sell'].append(pair[1])
+                break
 
         # Markov Chain Multiple Linear Regression Order # 
     print("Sending MC_Regress Orders now")
