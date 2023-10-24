@@ -2,6 +2,7 @@
 import MetaTrader5 as mt5 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
+import ta
 import warnings
 from statsmodels.tsa.stattools import adfuller 
 warnings.filterwarnings("ignore")

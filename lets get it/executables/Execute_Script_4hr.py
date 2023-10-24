@@ -2,6 +2,7 @@
 import MetaTrader5 as mt5 
 import pandas as pd
 from sklearn.linear_model import LinearRegression
+import ta
 import warnings
 from statsmodels.tsa.stattools import adfuller 
 warnings.filterwarnings("ignore")
@@ -33,14 +34,31 @@ from scipy.stats import kurtosis
 
 mt5.initialize()
 # Replace following with your MT5 Account Login
-account=51127988 # 
-password="Aar2frM7"
+account=51434456 # 
+password="9UpBvVzc"
 server = 'ICMarkets-Demo'
 
+
 def run():
-    first_order_pairs = [('AUDUSD.a', 'NZDUSD.a'), 
-                        ('EURUSD.a', 'GBPUSD.a'),
-                        ('EURNZD.a', 'GBPNZD.a')]
+    first_order_pairs = [
+        ('EURUSD.a', 'GBPUSD.a'),
+        ('EURUSD.a', 'AUDUSD.a'),
+        ('GBPUSD.a', 'AUDUSD.a'),
+        ('GBPUSD.a', 'USDJPY.a'),
+        ('EURUSD.a', 'USDJPY.a'),
+        ('AUDUSD.a', 'NZDUSD.a'),
+        ('AUDUSD.a', 'USDCAD.a'),
+        ('NZDUSD.a', 'USDCAD.a'),
+        ('EURAUD.a', 'EURNZD.a'),
+        ('EURAUD.a', 'EURCAD.a'),
+        ('EURNZD.a', 'EURCAD.a'),
+        ('GBPAUD.a', 'GBPNZD.a'),
+        ('GBPAUD.a', 'GBPCAD.a'),
+        ('GBPNZD.a', 'GBPCAD.a'),
+        ('AUDNZD.a', 'AUDCAD.a'),
+        ('AUDNZD.a', 'NZDCAD.a'),
+        ('AUDCAD.a', 'NZDCAD.a')
+    ]
     # Functions # 
     def get_rates(pair1, timeframe, x):
         pair1 = pd.DataFrame(mt5.copy_rates_from_pos(pair1, timeframe, 0, x))
@@ -507,7 +525,7 @@ def run():
 
         print(hedge_ratios)
 
-        lot = 2.00
+        lot = 1.50
 
         # For selling orders
         for i in MC_orders['sell']:
@@ -519,7 +537,7 @@ def run():
         for i in MC_orders['buy']:
             for key, val in hedge_ratios.items():
                 if i == key[1]:  # We apply hedge ratio to the second pair
-                    adjusted_lot = lot * val
+                    adjusted_lot = round(float(lot * val),2)
                     # Check if buy order is not already opened
                     if not is_order_open(i, 'buy', 'MC_REGRESS'):
                         MC_send_order(i, 'buy', adjusted_lot, 'MC_REGRESS', final_direction)
@@ -538,7 +556,7 @@ def run():
                 # print(f'Looping through {i} and {key[1]}')
                 if i == key[1]:  # We apply hedge ratio to the second pair
 
-                    adjusted_lot = lot * val
+                    adjusted_lot = round(float(lot * val),2)
                     print(adjusted_lot)
                     # Check if buy order is not already opened
                     if not is_order_open(i, 'buy', 'lin'):
@@ -548,7 +566,67 @@ def run():
                     if not is_order_open(i, 'buy', 'lin'):
                         print(f'Buying {i} (Regression Model)')
                         send_order(i, 'buy', adjusted_lot, 'B_Regress')
-                    
+    
+    def close_position(position):
+
+        tick = mt5.symbol_info_tick(position.symbol)
+
+        request = {
+            "action" : mt5.TRADE_ACTION_DEAL,
+            "position": position.ticket,
+            "symbol": position.symbol,
+            "volume": position.volume,
+            "type": mt5.ORDER_TYPE_BUY if position.type == 1 else mt5.ORDER_TYPE_SELL,
+            "price": tick.ask if position.type == 1 else tick.bid,
+            "deviation": 20,
+            "magic": 100,
+            "comment": 'Closing',
+            'type_time': mt5.ORDER_TIME_GTC,
+            'type_filling':mt5.ORDER_FILLING_IOC,
+
+            }
+        result = mt5.order_send(request)
+        print(f"Closed {position.symbol} of {position.comment}")
+        result
+
+    def check_close_position(trade_position):
+        from datetime import datetime
+        from datetime import datetime, timedelta
+
+        # Your logic to close the position
+        ticket = trade_position.ticket
+        time = datetime.fromtimestamp(trade_position.time)
+        symbol = trade_position.symbol
+        comment = trade_position.comment
+        print(f"Checking {symbol} of {comment} to close")
+        # Sample trade position (replace this with the actual object you get)
+        position = {
+            'ticket': ticket,
+            'time': time,  # This would be the actual Unix timestamp
+            'Symbol': symbol,
+            'Comment': comment,
+        }
+
+        local_to_utc_offset = timedelta(hours= +3)
+        
+        # Get the current time in GMT+3
+        current_time_gmt_plus_3 = datetime.now() 
+
+        # Convert it to UTC
+        current_time_utc = current_time_gmt_plus_3 + local_to_utc_offset
+
+        # Convert to Unix timestamp
+        current_unix_time = int(current_time_utc.timestamp())
+
+        # Calculate the time difference in seconds
+        time_difference = current_unix_time - int(i.time)
+
+        # Check if 4 hours or more have passed (4 hours = 4 * 60 * 60 seconds)
+        if time_difference >= 4 * 60 * 60:
+            close_position(trade_position)
+        else:
+            print(f"Position {symbol} of {comment} has been open for less than 4 hours.")
+
     # Classes # 
     class MarkovChain:
         def __init__(self, states, states_dict):
@@ -697,6 +775,11 @@ def run():
     print('Performing Loop')
 
     # Find Cointegrating Pairs # 
+
+    orders = {
+    "buy": [],
+    "sell": []
+    } 
 
     results = {}
 
@@ -955,13 +1038,16 @@ def run():
                 print(f"Selling {pair[0]} and buying {pair[1]}")
                 MC_orders['sell'].append(pair[0])
                 MC_orders['buy'].append(pair[1])
+                break
             elif final_direction > 0:
                 print(f"Buying {pair[0]} and selling {pair[1]}")
                 MC_orders['buy'].append(pair[0])
                 MC_orders['sell'].append(pair[1])
+                break
 
         # Markov Chain Multiple Linear Regression Order # 
     print("Sending MC_Regress Orders now")
+    print(MC_orders)
     mc_ordersending(final_direction)
 
 
@@ -973,8 +1059,14 @@ def run():
         y = get_rates(i[1], mt5.TIMEFRAME_H4, 6000)
         hedge_ratios[i] = calc_hedge_ratio(x, y)
 
-    lot = 0.75
+    lot = 1.00
     multi_lin_ordersend()
+
+    open_positions = mt5.positions_get()
+
+    for i in open_positions:
+
+        check_close_position(i)
 
 if __name__ == "__main__":
     run()

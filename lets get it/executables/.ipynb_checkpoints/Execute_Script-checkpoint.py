@@ -453,22 +453,6 @@ def run():
         result = mt5.order_send(request)
         result
 
-    def lin_send_order():
-
-        # Then continue with your order opening logic
-        lot = 0.5
-        for pair in orders['sell']:
-            if not is_order_open(pair, 'sell', 'lin'):
-                send_order(pair, 'sell', lot, 'S_Regress')
-
-        for pair in orders['buy']:
-            if not is_order_open(pair, 'buy', 'lin'):
-                for key, val in hedge_ratios.items():
-                    if pair in key:
-                        send_order(pair, 'buy', round(float(lot * val), 2), 'B_Regress')
-                    else: 
-                        continue
-
     def MC_send_order(symbol, side, lot, comment, final_direction):
         
         lot = abs(round(float(lot * score), 2))
@@ -508,7 +492,7 @@ def run():
 
         print(hedge_ratios)
 
-        lot = 2.00
+        lot = 1.25
 
         # For selling orders
         for i in MC_orders['sell']:
@@ -520,7 +504,7 @@ def run():
         for i in MC_orders['buy']:
             for key, val in hedge_ratios.items():
                 if i == key[1]:  # We apply hedge ratio to the second pair
-                    adjusted_lot = lot * val
+                    adjusted_lot = round(float(lot * val), 2)
                     # Check if buy order is not already opened
                     if not is_order_open(i, 'buy', 'MC_REGRESS'):
                         MC_send_order(i, 'buy', adjusted_lot, 'MC_REGRESS', final_direction)
@@ -975,7 +959,7 @@ def run():
         hedge_ratios[i] = calc_hedge_ratio(x, y)
 
     print("Sending Linear Regression Orders now")
-    lot = 0.75
+    lot = 1.00
     multi_lin_ordersend()
 
 if __name__ == "__main__":

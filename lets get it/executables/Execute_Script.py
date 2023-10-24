@@ -33,22 +33,38 @@ from scipy.stats import kurtosis
 
 mt5.initialize()
 # Replace following with your MT5 Account Login
-account=51127988 # 
-password="Aar2frM7"
+account=51434456 # 
+password="9UpBvVzc"
 server = 'ICMarkets-Demo'
 
 def run():
-    first_order_pairs = [('AUDUSD.a', 'NZDUSD.a'), 
-                        ('EURUSD.a', 'GBPUSD.a'),
-                        ('EURNZD.a', 'GBPNZD.a')]
+    first_order_pairs = [
+        ('EURUSD.a', 'GBPUSD.a'),
+        ('EURUSD.a', 'AUDUSD.a'),
+        ('GBPUSD.a', 'AUDUSD.a'),
+        ('GBPUSD.a', 'USDJPY.a'),
+        ('EURUSD.a', 'USDJPY.a'),
+        ('AUDUSD.a', 'NZDUSD.a'),
+        ('AUDUSD.a', 'USDCAD.a'),
+        ('NZDUSD.a', 'USDCAD.a'),
+        ('EURAUD.a', 'EURNZD.a'),
+        ('EURAUD.a', 'EURCAD.a'),
+        ('EURNZD.a', 'EURCAD.a'),
+        ('GBPAUD.a', 'GBPNZD.a'),
+        ('GBPAUD.a', 'GBPCAD.a'),
+        ('GBPNZD.a', 'GBPCAD.a'),
+        ('AUDNZD.a', 'AUDCAD.a'),
+        ('AUDNZD.a', 'NZDCAD.a'),
+        ('AUDCAD.a', 'NZDCAD.a')
+    ]
     # Functions # 
     def get_rates(pair1, timeframe, x):
         pair1 = pd.DataFrame(mt5.copy_rates_from_pos(pair1, timeframe, 0, x))
         pair1['time'] = pd.to_datetime(pair1['time'], unit = 's')
         return pair1['close']
     
-    def get_data(symbol, bars=6000):
-        rates = pd.DataFrame(mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H4, 0, bars))
+    def get_data(symbol, bars=1000):
+        rates = pd.DataFrame(mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_D1, 0, bars))
         rates['time'] = pd.to_datetime(rates['time'], unit = 's')
         return rates[['time', 'close']].set_index('time')
 
@@ -413,6 +429,7 @@ def run():
             
             # Check the symbol and the type
             if position.symbol == pair and pos_type == order_type:
+                print(f"{position.symbol} is already open")
                 return True
         # If loop finishes and no matching open order was found
         return False
@@ -452,22 +469,6 @@ def run():
         result = mt5.order_send(request)
         result
 
-    def lin_send_order():
-
-        # Then continue with your order opening logic
-        lot = 0.5
-        for pair in orders['sell']:
-            if not is_order_open(pair, 'sell', 'lin'):
-                send_order(pair, 'sell', lot, 'S_Regress')
-
-        for pair in orders['buy']:
-            if not is_order_open(pair, 'buy', 'lin'):
-                for key, val in hedge_ratios.items():
-                    if pair in key:
-                        send_order(pair, 'buy', round(float(lot * val), 2), 'B_Regress')
-                    else: 
-                        continue
-
     def MC_send_order(symbol, side, lot, comment, final_direction):
         
         lot = abs(round(float(lot * score), 2))
@@ -501,13 +502,13 @@ def run():
         hedge_ratios = {}
 
         for i in coint_pairs:
-            x = get_rates(i[0], mt5.TIMEFRAME_H4, 6000)
-            y = get_rates(i[1], mt5.TIMEFRAME_H4, 6000)
+            x = get_rates(i[0], mt5.TIMEFRAME_D1, 1000)
+            y = get_rates(i[1], mt5.TIMEFRAME_D1, 1000)
             hedge_ratios[i] = calc_hedge_ratio(x, y)
 
         print(hedge_ratios)
 
-        lot = 2.00
+        lot = 1.25
 
         # For selling orders
         for i in MC_orders['sell']:
@@ -519,7 +520,7 @@ def run():
         for i in MC_orders['buy']:
             for key, val in hedge_ratios.items():
                 if i == key[1]:  # We apply hedge ratio to the second pair
-                    adjusted_lot = lot * val
+                    adjusted_lot = round(float(lot * val), 2)
                     # Check if buy order is not already opened
                     if not is_order_open(i, 'buy', 'MC_REGRESS'):
                         MC_send_order(i, 'buy', adjusted_lot, 'MC_REGRESS', final_direction)
@@ -548,7 +549,34 @@ def run():
                     if not is_order_open(i, 'buy', 'lin'):
                         print(f'Buying {i} (Regression Model)')
                         send_order(i, 'buy', adjusted_lot, 'B_Regress')
-                    
+
+    def check_close_position(trade_position):
+        from datetime import datetime
+        # Your logic to close the position
+        ticket = trade_position.ticket
+        time = datetime.fromtimestamp(trade_position.time)
+        symbol = trade_position.symbol
+        comment = trade_position.comment
+        print(f"Checking {symbol} of {comment} to close")
+        # Sample trade position (replace this with the actual object you get)
+        position = {
+            'ticket': ticket,
+            'time': time,  # This would be the actual Unix timestamp
+            'Symbol': symbol,
+            'Comment': comment,
+        }
+            # Get the current Unix timestamp
+        current_unix_time = int(datetime.utcnow().timestamp())
+        # print(f"Current UNIX time is {current_unix_time}")
+        # Calculate the time difference in seconds
+        time_difference = current_unix_time - int(i.time)
+
+        # Check if 4 hours or more have passed (4 hours = 4 * 60 * 60 seconds)
+        if time_difference >= 24 * 60 * 60:
+            close_position(trade_position)
+        else:
+            print(f"Position {symbol} of {comment} has been open for less than 4 hours.")
+
     # Classes # 
     class MarkovChain:
         def __init__(self, states, states_dict):
@@ -948,17 +976,17 @@ def run():
                 
                 # Update the final direction
                 final_direction += weighted_score
-
-            print(f'Direction for {pair} is ', final_direction)
             
             if final_direction < 0:
                 print(f"Selling {pair[0]} and buying {pair[1]}")
                 MC_orders['sell'].append(pair[0])
                 MC_orders['buy'].append(pair[1])
+                break
             elif final_direction > 0:
                 print(f"Buying {pair[0]} and selling {pair[1]}")
                 MC_orders['buy'].append(pair[0])
                 MC_orders['sell'].append(pair[1])
+                break
 
         # Markov Chain Multiple Linear Regression Order # 
     print("Sending MC_Regress Orders now")
@@ -969,11 +997,12 @@ def run():
     hedge_ratios = {}
 
     for i in coint_pairs:
-        x = get_rates(i[0], mt5.TIMEFRAME_H4, 6000)
-        y = get_rates(i[1], mt5.TIMEFRAME_H4, 6000)
+        x = get_rates(i[0], mt5.TIMEFRAME_D1, 1000)
+        y = get_rates(i[1], mt5.TIMEFRAME_D1, 1000)
         hedge_ratios[i] = calc_hedge_ratio(x, y)
 
-    lot = 0.75
+    print("Sending Linear Regression Orders now")
+    lot = 1.00
     multi_lin_ordersend()
 
 if __name__ == "__main__":
