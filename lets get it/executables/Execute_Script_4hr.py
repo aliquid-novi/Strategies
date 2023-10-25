@@ -488,7 +488,7 @@ def run():
 
     def MC_send_order(symbol, side, lot, comment, final_direction):
         
-        lot = abs(round(float(lot * score), 2))
+        # lot = abs(round(float(lot * score), 2))
         print(f"for {symbol}, the lot size is {lot}")
         
         if side.lower() == 'sell':
