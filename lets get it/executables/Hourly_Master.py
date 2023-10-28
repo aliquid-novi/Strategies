@@ -3,9 +3,9 @@ import subprocess
 from datetime import datetime, timedelta
 import pytz
 
-def execute_inter_lagged_script():
-    print("Running Inter-Lagged.py")
-    subprocess.run(["python", "Inter-Lagged.py"])
+def execute_correl_reversion():
+    print("Running correl_reversion")
+    subprocess.run(["python", "Correl_Reversion_h1.py"])
 
 
 def check_time_and_execute():
@@ -17,7 +17,7 @@ def check_time_and_execute():
 while True:
     # Execute your scripts
     check_time_and_execute()
-    execute_inter_lagged_script()
+    execute_correl_reversion()
 
     # Get the current time in the 'Europe/Helsinki' timezone
     now = datetime.now(pytz.timezone('Europe/Helsinki'))
@@ -26,7 +26,7 @@ while True:
     next_hour = now + timedelta(hours=1)
     next_hour = next_hour.replace(minute=0, second=0, microsecond=0)
     sleep_time = (next_hour - now).seconds
-
+3
     print("Pending...")
     print(f"Local time is {now}.")
     print(f"Sleeping for {sleep_time} seconds until the next hour.")
