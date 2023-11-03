@@ -136,40 +136,36 @@ from statsmodels.tsa.arima.model import ARIMA
 import warnings
 warnings.filterwarnings("ignore")
 
-df = get_pair_correlations('EURUSD.a', 'GBPUSD.a', 5)
+def arima_correl(pair1, pair2):
+    df = get_pair_correlations(pair1, pair2, 5)
+    
+    lst = ['diff', f'{pair1}' + '_return']
+    for heading in lst:
+        model_diff = ARIMA(df[heading], order=(2,0,0), exog=df['shifted_rolling_corr_returns'])
+        model_diff_fit = model_diff.fit()
+        yhat_diff = model_diff_fit.forecast(steps=1, exog=np.array([[df['shifted_rolling_corr_returns'].iloc[-2]]]))
+        
+        if heading == 'diff':
+            lot = 1.25
 
-model_diff = ARIMA(df['diff'], order=(1,0,0), exog=df['shifted_rolling_corr_returns'])
-model_diff_fit = model_diff.fit()
-yhat_diff = model_diff_fit.forecast(steps=1, exog=np.array([[df['shifted_rolling_corr_returns'].iloc[-2]]]))
+            if yhat_diff.values > 0.00003:
+                send_order(pair1, 'sell', lot, 'H1/CORARIMA ' + heading[0] + heading[3])
+                send_order(pair2, 'buy', lot, 'H1/CORARIMA '+ heading[0] + heading[3])
+            elif yhat_diff.values < 0.00003:
+                send_order(pair1, 'buy', lot, 'H1/CORARIMA '+ heading[0] + heading[3])
+                send_order(pair2, 'sell', lot, 'H1/CORARIMA' + heading[0] + heading[3])
+        else:
+            if yhat_diff.values > 0.00003:
+                send_order(pair1, 'sell', lot, 'H1/CORARIMA ' + heading[0] + heading[3])
+                send_order(pair2, 'buy', lot, 'H1/CORARIMA '+ heading[0] + heading[3])
+            elif yhat_diff.values < 0.00003:
+                send_order(pair1, 'buy', lot, 'H1/CORARIMA '+ heading[0] + heading[3])
+                send_order(pair2, 'sell', lot, 'H1/CORARIMA' + heading[0] + heading[3])
 
-print("Sending Orders")
-#DIFF
-if yhat_diff.values > 0:
-    send_order('EURUSD.a', 'sell', 2.50, 'H1Correl_Rev_D')
-    send_order('GBPUSD.a', 'buy', 2.30, 'H1Correl_Rev_D')
-elif yhat_diff.values < 0:
-    send_order('EURUSD.a', 'buy', 2.50, 'H1Correl_Rev_D')
-    send_order('GBPUSD.a', 'sell', 2.30, 'H1Correl_Rev_D')
+pairs = [['EURUSD.a', 'GBPUSD.a'], ['EURUSD.a', 'AUDUSD.a']]
 
-#EURUSD 
-model_diff = ARIMA(df['EURUSD.a_return'], order=(1,0,0), exog=df['shifted_rolling_corr_returns'])
-model_diff_fit = model_diff.fit()
-yhat_diff = model_diff_fit.forecast(steps=1, exog=np.array([[df['shifted_rolling_corr_returns'].iloc[-2]]]))
-
-if yhat_diff.values > 0:
-    send_order('EURUSD.a', 'buy', 2.50, 'H1Correl_Rev_EU')
-elif yhat_diff.values < 0:
-    send_order('EURUSD.a', 'sell', 2.50, 'H1Correl_Rev_EU')
-
-#GBPUSD 
-model_diff = ARIMA(df['GBPUSD.a_return'], order=(1,0,0), exog=df['shifted_rolling_corr_returns'])
-model_diff_fit = model_diff.fit()
-yhat_diff = model_diff_fit.forecast(steps=1, exog=np.array([[df['shifted_rolling_corr_returns'].iloc[-2]]]))
-
-if yhat_diff.values > 0:
-    send_order('GBPUSD.a', 'buy', 2.30, 'H1Correl_Rev_GU')
-elif yhat_diff.values < 0:
-    send_order('GBPUSD.a', 'sell', 2.30, 'H1Correl_Rev_GU')
+for pair in pairs:
+    arima_correl(pair[0], pair[1])
 
 positions = mt5.positions_get()
 for i in positions:
