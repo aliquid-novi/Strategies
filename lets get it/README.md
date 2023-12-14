@@ -11,6 +11,18 @@ EER Values published by the BIS is able to forecast Foreign Exchange Prices. By 
 
 Therefore, further study upon the relationship of EER Values will be able to assist in forecasting FX Prices on both the Daily and Weely timeframe.
 
+### Relationships Found 
+**Weekly** 
+
+EER Correlation with AU is: - 0.789959411588927
+EER Correlation with CA is: - -0.8025088045215404
+EER Correlation with CH is: - -0.6988886637344842
+EER Correlation with GB is: - 0.6875061468615474
+EER Correlation with JP is: - -0.8166462412374796
+EER Correlation with NZ is: - 0.7756967406755285
+EER Correlation with XM is: - 0.7542138061921932
+
+
 ## Correlation Mean Reversion
 
 Descriptive statistics, such as correlation, has mean reverting properties in which alpha can be found across another instrument that demonstrates a Granger-Casuality relationship.
