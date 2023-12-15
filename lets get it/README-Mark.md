@@ -14,13 +14,13 @@ Therefore, further study upon the relationship of EER Values will be able to ass
 ### Relationships Found 
 **Weekly** 
 
-EER Correlation with AU is: 0.7901864448535375
-EER Correlation with CA is: -0.8028662382263347
-EER Correlation with CH is: -0.6972064531265869
-EER Correlation with GB is: 0.6872038876573432
-EER Correlation with JP is: -0.8162789646117149
-EER Correlation with NZ is: 0.7759010905793639
-EER Correlation with XM is: 0.75461984964802
+EER Correlation with AU is: - 0.789959411588927
+EER Correlation with CA is: - -0.8025088045215404
+EER Correlation with CH is: - -0.6988886637344842
+EER Correlation with GB is: - 0.6875061468615474
+EER Correlation with JP is: - -0.8166462412374796
+EER Correlation with NZ is: - 0.7756967406755285
+EER Correlation with XM is: - 0.7542138061921932
 
 
 ## Correlation Mean Reversion
