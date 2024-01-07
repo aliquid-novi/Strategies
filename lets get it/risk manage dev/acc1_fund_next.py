@@ -1,5 +1,8 @@
 import MetaTrader5 as mt5
 from datetime import datetime, timezone, timedelta
+from risk_manage_main import ProfitLossControl
+import pytz 
+import time
 
 mt5.initialize()
 # Replace following with your MT5 Account Login
@@ -37,79 +40,37 @@ def close_all():
     for pos in close_positions:
         close_position(pos)
         
-class ProfitLossControl:
+def run_script():
+    obj = ProfitLossControl(-0.05, 0.05, 0.00125, 25000)
+
+    print("Running script")
+    start_equity = obj.start_equity() # Reset the start equity everyday at 9am AEST / 12:00AM GMT+2
+
+    if start_equity != None:
+        days_pnl = obj.day_pnl(start_equity)
+
+        obj.daily_dd_control(days_pnl)
+
+    else:
+        print("No value for starting equity yet")
+
+def wait_for_next_half_hour():
+    now = datetime.now()
+
+    # Check if the current minute is before or after the 30-minute mark
+    if now.minute < 30:
+        # Set next half-hour mark to the same hour but 30 minutes
+        next_half_hour = now.replace(minute=30, second=0, microsecond=0)
+    else:
+        # Set next half-hour mark to the next hour and 0 minutes
+        next_half_hour = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+
+    wait_time = (next_half_hour - now).total_seconds()
+    print(f"Current time is {now}")
+    print(f"Waiting for {wait_time} seconds until the next half hour.")
+    time.sleep(wait_time)
+
+while True:
+    run_script()
+    wait_for_next_half_hour()
     
-    def __init__(self, max_daily_dd, profit_threshold, hedging_threshold, starting_equity):
-        self.max_daily_dd = max_daily_dd
-        self.profit_threshold = profit_threshold
-        self.hedging_threshold = hedging_threshold
-        self.starting_equity = starting_equity
-    
-    def start_equity(self, countdown):
-
-        gmt_plus_2 = pytz.timezone('EET')  # Eastern European Time is typically GMT+2
-
-        # Get the current time in UTC and convert it to GMT+2
-        now_utc = datetime.now(timezone.utc)
-        time = now_utc.astimezone(gmt_plus_2)
-        now_gmt_plus_2 = now_utc.astimezone(gmt_plus_2)
-
-        # Create a datetime object for the reset time (00:00:01) on the same day in GMT+2
-        reset_time_today = now_gmt_plus_2.replace(hour=0, minute=0)
-
-        if now_gmt_plus_2 != reset_time_today:
-            info = mt5.account_info()
-            start_equity = info.equity
-            print(f"Starting equity is {start_equity}")
-
-            return start_equity
-
-        else:
-            print(f"{countdown} remaining until equity reset")
-
-    def day_pnl(self, start_equity): # Return current days equity drawdow / profit as a percentage from the start of the day. 
-        
-        # Define the GMT+2 timezone
-        gmt_plus_2 = pytz.timezone('EET')  # Eastern European Time is typically GMT+2
-
-        # Get the current time in UTC and convert it to GMT+2
-        now_utc = datetime.now(timezone.utc)
-        time = now_utc.astimezone(gmt_plus_2)
-        now_gmt_plus_2 = now_utc.astimezone(gmt_plus_2)
-
-        # Create a datetime object for the reset time (00:00:01) on the same day in GMT+2
-        reset_time_today = now_gmt_plus_2.replace(hour=0, minute=0, second=1, microsecond=0)
-
-        # Calculate the countdown to the reset time
-        if now_gmt_plus_2 >= reset_time_today:
-            # If the current time is after the reset time, calculate the countdown to the next day's reset time
-            reset_time_tomorrow = reset_time_today + timedelta(days=1)
-            countdown = reset_time_tomorrow - now_gmt_plus_2
-        else:
-            # If the current time is before today's reset time, calculate the countdown to today's reset time
-            countdown = reset_time_today - now_gmt_plus_2
-        
-        account_info = mt5.account_info()
-        equity = account_info.balance + account_info.profit
-        
-        day_pnl = equity - start_equity
-
-        print(day_pnl)
-        print(f"Time until next reset: {countdown}")
-        
-        return int(day_pnl)
-        
-    def daily_dd_control(self, day_pnl): 
-        
-        if day_pnl <= (self.max_daily_dd / 1.35):
-            print('Closing all positions for the day')
-            close_all()
-        else:
-            print(f'Threshold not reached. Current day pnl percent: {day_pnl}')
-        
-obj = ProfitLossControl(-0.03, 0.03, 0.00125, 6000)
-
-
-obj.daily_dd_control(2.00)
-
-obj.day_pnl()
